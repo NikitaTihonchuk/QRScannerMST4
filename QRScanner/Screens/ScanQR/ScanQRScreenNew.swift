@@ -4,6 +4,7 @@ import PhotosUI
 
 struct ScanQRScreenNew: View {
     @ObservedObject private var apphudManager = ApphudManager.shared
+    @ObservedObject private var scanLimitManager = ScanLimitManager.shared
     @StateObject private var cameraManager = CameraManager()
     @State private var showResultSheet = false
     @State private var scannedResult: ScannedQRCode?
@@ -13,6 +14,8 @@ struct ScanQRScreenNew: View {
     @State private var detectedQRCodes: [String] = []
     @State private var isProcessingImage = false
     @State var isFreeScanEnable: Bool = false
+    @State private var showPaywall = false
+    @State private var showLastScanWarning = false
     var body: some View {
         ZStack {
             // Background color
@@ -21,14 +24,29 @@ struct ScanQRScreenNew: View {
             
             VStack(spacing: 0) {
                 // Top bar
-                HStack {
-                    Text("Scan QR Code")
-                        .font(.custom(FontEnum.interSemiBold.rawValue, size: 22))
-                        .foregroundColor(.black)
-                    Spacer()
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Scan QR Code")
+                            .font(.custom(FontEnum.interSemiBold.rawValue, size: 22))
+                            .foregroundColor(.black)
+                        Spacer()
+                        
+                        // Показываем счетчик только для бесплатных пользователей
+                        if !apphudManager.hasPremium {
+                            VStack(spacing: 2) {
+                                Text("\(scanLimitManager.remainingScans)/5")
+                                    .font(.custom(FontEnum.interBold.rawValue, size: 16))
+                                    .foregroundColor(scanLimitManager.remainingScans > 0 ? Color(hex: "5AC8FA") : .red)
+                                
+                                Text("Free scans")
+                                    .font(.custom(FontEnum.interRegular.rawValue, size: 10))
+                                    .foregroundColor(Color(hex: "8E8E93"))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom)
                 .background(
                     Rectangle()
                         .foregroundStyle(Color(hex: "FFFFFF"))
@@ -98,7 +116,35 @@ struct ScanQRScreenNew: View {
                                 }
                         }
                     } else {
-                        if isFreeScanEnable {
+                        // Для бесплатных пользователей
+                        if scanLimitManager.hasReachedLimit && !isFreeScanEnable {
+                            // Показываем кнопку для открытия paywall
+                            Button(action: {
+                                showPaywall = true
+                            }) {
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(Color.black.opacity(0.8))
+                                    .frame(width: 260, height: 260)
+                                    .overlay {
+                                        VStack(spacing: 12) {
+                                            Image(systemName: "lock.fill")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.white)
+                                            
+                                            Text("Free scan limit reached")
+                                                .font(.custom(FontEnum.interSemiBold.rawValue, size: 16))
+                                                .foregroundColor(.white)
+                                                .multilineTextAlignment(.center)
+                                            
+                                            Text("Tap to unlock unlimited scans")
+                                                .font(.custom(FontEnum.interRegular.rawValue, size: 13))
+                                                .foregroundColor(Color(hex: "5AC8FA"))
+                                                .multilineTextAlignment(.center)
+                                        }
+                                        .padding()
+                                    }
+                            }
+                        } else if isFreeScanEnable {
                             if cameraManager.isAuthorized {
                                 CameraPreviewView(session: cameraManager.session)
                                     .frame(width: 278, height: 278)
@@ -165,8 +211,8 @@ struct ScanQRScreenNew: View {
                                 .foregroundColor(Color(hex: "5A5A5A"))
                         }
                     }
-                    .disabled(cameraManager.currentCameraPosition == .front)
-                    .opacity(cameraManager.currentCameraPosition == .front ? 0.5 : 1.0)
+                    .disabled(cameraManager.currentCameraPosition == .front || (!apphudManager.hasPremium && scanLimitManager.hasReachedLimit && !isFreeScanEnable))
+                    .opacity((cameraManager.currentCameraPosition == .front || (!apphudManager.hasPremium && scanLimitManager.hasReachedLimit && !isFreeScanEnable)) ? 0.5 : 1.0)
                     
                     // Switch Camera
                     Button(action: {
@@ -180,6 +226,8 @@ struct ScanQRScreenNew: View {
                                 .foregroundColor(Color(hex: "5A5A5A"))
                         }
                     }
+                    .disabled(!apphudManager.hasPremium && scanLimitManager.hasReachedLimit && !isFreeScanEnable)
+                    .opacity((!apphudManager.hasPremium && scanLimitManager.hasReachedLimit && !isFreeScanEnable) ? 0.5 : 1.0)
                     
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                         VStack(spacing: 8) {
@@ -190,6 +238,8 @@ struct ScanQRScreenNew: View {
                                 .foregroundColor(Color(hex: "5A5A5A"))
                         }
                     }
+                    .disabled(!apphudManager.hasPremium && scanLimitManager.hasReachedLimit && !isFreeScanEnable)
+                    .opacity((!apphudManager.hasPremium && scanLimitManager.hasReachedLimit && !isFreeScanEnable) ? 0.5 : 1.0)
                 }
                 .padding(.horizontal, 60)
                 .padding(.top, 40)
@@ -219,9 +269,19 @@ struct ScanQRScreenNew: View {
             
             cameraManager.scannedCode = nil
             cameraManager.resetScanning()
+            
+            // Сбрасываем счетчик, если у пользователя есть премиум
+            if apphudManager.hasPremium {
+                scanLimitManager.resetScanCount()
+            }
         }
         .onDisappear {
             cameraManager.stopSession()
+            
+            // Сбрасываем флаг бесплатного скана при выходе с экрана
+            if !apphudManager.hasPremium && scanLimitManager.hasReachedLimit {
+                isFreeScanEnable = false
+            }
         }
         .onChange(of: cameraManager.scannedCode) { oldValue, newValue in
             if let code = newValue, scannedResult == nil {
@@ -231,6 +291,11 @@ struct ScanQRScreenNew: View {
         .fullScreenCover(isPresented: $showResultSheet) {
             if let result = scannedResult {
                 ScanResultSheet(result: result, isPresented: $showResultSheet)
+                    .onDisappear() {
+                        Task {
+                            await RewardedAdManager.shared.loadAd()
+                        }
+                    }
             }
         }
         .onChange(of: showResultSheet) { oldValue, newValue in
@@ -276,6 +341,32 @@ struct ScanQRScreenNew: View {
                 ProcessingImageOverlay()
             }
         }
+        .fullScreenCover(isPresented: $showPaywall) {
+            PaywallView(isOnbording: false, onboardingAction: {
+                showPaywall = false
+            })
+        }
+        .onChange(of: apphudManager.hasPremium) { oldValue, newValue in
+            if newValue {
+                // Пользователь купил премиум - сбрасываем счетчик
+                scanLimitManager.resetScanCount()
+            }
+        }
+        .onChange(of: scanLimitManager.hasReachedLimit) { oldValue, newValue in
+            if newValue && !apphudManager.hasPremium {
+                // Лимиты закончились - сбрасываем флаг бесплатного скана
+                isFreeScanEnable = false
+                cameraManager.stopSession()
+            }
+        }
+        .alert("Last Free Scan!", isPresented: $showLastScanWarning) {
+            Button("Continue", role: .cancel) { }
+            Button("Get Unlimited") {
+                showPaywall = true
+            }
+        } message: {
+            Text("This is your last free scan. Upgrade to Premium for unlimited QR code scanning!")
+        }
     }
     
     private func handleScanResult(_ code: String) {
@@ -294,6 +385,19 @@ struct ScanQRScreenNew: View {
         showResultSheet = true
         
         QRHistoryManager.shared.saveToHistory(result)
+        
+        // Увеличиваем счетчик сканирований только для бесплатных пользователей
+        if !apphudManager.hasPremium {
+            scanLimitManager.incrementScanCount()
+            
+            // Показываем предупреждение, если остался 1 бесплатный скан
+            if scanLimitManager.remainingScans == 1 {
+                // Небольшая задержка, чтобы не конфликтовать с showResultSheet
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showLastScanWarning = true
+                }
+            }
+        }
     }
     
     private func detectQRCodeType(from content: String) -> QRCodeType {
