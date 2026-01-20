@@ -30,7 +30,7 @@ class AppsFlyerManager: NSObject, ObservableObject {
 
         // Включаем debug режим для разработки (отключите в продакшене!)
         #if DEBUG
-        AppsFlyerLib.shared().isDebug = true
+        AppsFlyerLib.shared().isDebug = false
         #endif
 
         // Ждем разрешение ATT перед запуском SDK

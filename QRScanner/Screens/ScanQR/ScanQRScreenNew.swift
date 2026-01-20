@@ -3,6 +3,7 @@ import AVFoundation
 import PhotosUI
 
 struct ScanQRScreenNew: View {
+    @ObservedObject private var apphudManager = ApphudManager.shared
     @StateObject private var cameraManager = CameraManager()
     @State private var showResultSheet = false
     @State private var scannedResult: ScannedQRCode?
@@ -11,7 +12,7 @@ struct ScanQRScreenNew: View {
     @State private var showMultipleQRSheet = false
     @State private var detectedQRCodes: [String] = []
     @State private var isProcessingImage = false
-    
+    @State var isFreeScanEnable: Bool = false
     var body: some View {
         ZStack {
             // Background color
@@ -74,26 +75,78 @@ struct ScanQRScreenNew: View {
                         .stroke(Color(hex: "5AC8FA"), lineWidth: 3)
                         .frame(width: 280, height: 280)
                     // Camera preview
-                    if cameraManager.isAuthorized {
-                        CameraPreviewView(session: cameraManager.session)
-                            .frame(width: 278, height: 278)
-                    } else {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.black.opacity(0.8))
-                            .frame(width: 260, height: 260)
-                            .overlay {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.white)
-                                    
-                                    Text("Camera Access Required")
-                                        .font(.custom(FontEnum.interMedium.rawValue, size: 14))
-                                        .foregroundColor(.white)
-                                        .multilineTextAlignment(.center)
+                    if apphudManager.hasPremium {
+                        if cameraManager.isAuthorized {
+                            CameraPreviewView(session: cameraManager.session)
+                                .frame(width: 278, height: 278)
+                        } else {
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(Color.black.opacity(0.8))
+                                .frame(width: 260, height: 260)
+                                .overlay {
+                                    VStack(spacing: 12) {
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 40))
+                                            .foregroundColor(.white)
+                                        
+                                        Text("Camera Access Required")
+                                            .font(.custom(FontEnum.interMedium.rawValue, size: 14))
+                                            .foregroundColor(.white)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    .padding()
                                 }
-                                .padding()
+                        }
+                    } else {
+                        if isFreeScanEnable {
+                            if cameraManager.isAuthorized {
+                                CameraPreviewView(session: cameraManager.session)
+                                    .frame(width: 278, height: 278)
+                            } else {
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(Color.black.opacity(0.8))
+                                    .frame(width: 260, height: 260)
+                                    .overlay {
+                                        VStack(spacing: 12) {
+                                            Image(systemName: "camera.fill")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.white)
+                                            
+                                            Text("Camera Access Required")
+                                                .font(.custom(FontEnum.interMedium.rawValue, size: 14))
+                                                .foregroundColor(.white)
+                                                .multilineTextAlignment(.center)
+                                        }
+                                        .padding()
+                                    }
                             }
+                        } else {
+                            Button(action: {
+                                RewardedAdManager.shared.showAd { reward in
+                                    isFreeScanEnable = true
+                                }
+
+                            }, label: {
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(Color.black.opacity(0.8))
+                                    .frame(width: 260, height: 260)
+                                    .overlay {
+                                        VStack(spacing: 12) {
+                                            Image(systemName: "hand.tap")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.white)
+                                            
+                                            Text("Tap to watch ads and get QR Code free scan")
+                                                .font(.custom(FontEnum.interMedium.rawValue, size: 14))
+                                                .foregroundColor(.white)
+                                                .multilineTextAlignment(.center)
+                                            
+                                            
+                                        }
+                                        .padding()
+                                    }
+                            })
+                        }
                     }
                 }
                 .frame(width: 260, height: 260)
@@ -157,6 +210,9 @@ struct ScanQRScreenNew: View {
             await cameraManager.checkAuthorization()
         }
         .onAppear {
+            Task {
+                await RewardedAdManager.shared.loadAd()
+            }
             scannedResult = nil
             isProcessingImage = false
             selectedPhotoItem = nil

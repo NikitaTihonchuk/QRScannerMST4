@@ -5,9 +5,11 @@ import GoogleMobileAds
 struct QRScannerApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @StateObject private var appsFlyerManager = AppsFlyerManager.shared
+    @ObservedObject private var apphudManager = ApphudManager.shared
+
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-
+    @State var firstTime: Bool = true
     init() {
         MobileAds.shared.start()
     }
@@ -20,8 +22,26 @@ struct QRScannerApp: App {
                     .task {
                         await initializeApp()
                     }
+                    .onAppear() {
+                        if !apphudManager.hasPremium {
+                            if firstTime {
+                                Task {
+                                    try? await Task.sleep(nanoseconds: 3_000_000_000) // 0.3 сек
+                                    await AppOpenAdManager.shared.showAdIfAvailable()
+                                }
+                            }
+                        }
+                        firstTime = false
+                    }
                     .onChange(of: scenePhase) { oldPhase, newPhase in
                         handleScenePhaseChange(oldPhase: oldPhase, newPhase: newPhase)
+                        if !apphudManager.hasPremium {
+                            Task {
+                                try? await Task.sleep(nanoseconds: 1_000_000_000) // 0.3 сек
+                                await AppOpenAdManager.shared.showAdIfAvailable()
+                            }
+                        }
+                        
                     }
                     .onOpenURL { url in
                         // Обработка deep links
@@ -81,6 +101,7 @@ struct QRScannerApp: App {
             if appsFlyerManager.isInitialized {
                 AppsFlyerManager.shared.start()
             }
+
 
         case .inactive:
             print("🟡 App стал неактивным")

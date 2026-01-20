@@ -11,6 +11,7 @@
 		331DB2402F1D2A68003ABF44 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 331DB23F2F1D2A68003ABF44 /* GoogleMobileAds */; };
 		331DB2432F1D2AE2003ABF44 /* AppMetricaCore in Frameworks */ = {isa = PBXBuildFile; productRef = 331DB2422F1D2AE2003ABF44 /* AppMetricaCore */; };
 		331DB3762F1D6DBE003ABF44 /* ApphudSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 331DB3752F1D6DBE003ABF44 /* ApphudSDK */; };
+		331DB5262F1F5051003ABF44 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 331DB5252F1F5051003ABF44 /* FirebaseAnalytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 				331DB2432F1D2AE2003ABF44 /* AppMetricaCore in Frameworks */,
 				331DB3762F1D6DBE003ABF44 /* ApphudSDK in Frameworks */,
 				331DB2402F1D2A68003ABF44 /* GoogleMobileAds in Frameworks */,
+				331DB5262F1F5051003ABF44 /* FirebaseAnalytics in Frameworks */,
 				331DB2392F1D2A1D003ABF44 /* AppsFlyerLib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -93,6 +95,7 @@
 				331DB23F2F1D2A68003ABF44 /* GoogleMobileAds */,
 				331DB2422F1D2AE2003ABF44 /* AppMetricaCore */,
 				331DB3752F1D6DBE003ABF44 /* ApphudSDK */,
+				331DB5252F1F5051003ABF44 /* FirebaseAnalytics */,
 			);
 			productName = QRScanner;
 			productReference = 33E5BBFF2F1A2D750012F190 /* QRScanner.app */;
@@ -127,6 +130,7 @@
 				331DB23E2F1D2A68003ABF44 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
 				331DB2412F1D2AE2003ABF44 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */,
 				331DB3742F1D6DBD003ABF44 /* XCRemoteSwiftPackageReference "ApphudSDK" */,
+				331DB5242F1F5051003ABF44 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33E5BC002F1A2D750012F190 /* Products */;
@@ -431,6 +435,14 @@
 				version = 3.4.0;
 			};
 		};
+		331DB5242F1F5051003ABF44 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.8.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -453,6 +465,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 331DB3742F1D6DBD003ABF44 /* XCRemoteSwiftPackageReference "ApphudSDK" */;
 			productName = ApphudSDK;
+		};
+		331DB5252F1F5051003ABF44 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 331DB5242F1F5051003ABF44 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

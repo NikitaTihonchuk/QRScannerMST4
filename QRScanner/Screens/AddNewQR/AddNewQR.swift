@@ -191,8 +191,10 @@ struct AddNewQR: View {
             }
         }
         .onAppear() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.isAdvertisment = true
+            if !apphudManager.hasPremium {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.isAdvertisment = true
+                }
             }
         }
         .sheet(isPresented: $showShareSheet) {

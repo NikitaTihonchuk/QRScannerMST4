@@ -1,6 +1,7 @@
 import SwiftUI
 
-struct HomeScreen: View {    
+struct HomeScreen: View {
+    @ObservedObject private var apphudManager = ApphudManager.shared
     private let buttons = HomeMainButtonStruct.homeMainButton
     private let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -43,6 +44,12 @@ struct HomeScreen: View {
                             }
                         }
                         .padding(.horizontal, 20)
+                        
+                        if !apphudManager.hasPremium {
+                            BannerAdView()
+                                .frame(height: 50)
+                                .padding(.horizontal, 20)
+                        }
                         
                         // Recent Activity Section
                         VStack(alignment: .leading, spacing: 16) {
