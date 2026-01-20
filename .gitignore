@@ -1,0 +1,9 @@
+# Google Services API Keys
+GoogleService-Info*.plist
+
+# Xcode user data
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store
