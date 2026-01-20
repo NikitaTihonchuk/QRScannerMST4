@@ -1,10 +1,12 @@
 import SwiftUI
 import GoogleMobileAds
+import Combine
 
 @main
 struct QRScannerApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @StateObject private var appsFlyerManager = AppsFlyerManager.shared
+    @StateObject private var appMetricaManager = AppMetricaManager.shared
     @ObservedObject private var apphudManager = ApphudManager.shared
 
     @Environment(\.scenePhase) private var scenePhase
@@ -19,6 +21,7 @@ struct QRScannerApp: App {
             if hasCompletedOnboarding {
                 MainTabView()
                     .environmentObject(appsFlyerManager)
+                    .environmentObject(appMetricaManager)
                     .task {
                         await initializeApp()
                     }
@@ -50,6 +53,7 @@ struct QRScannerApp: App {
             } else {
                 OnboardingMainScreen()
                     .environmentObject(appsFlyerManager)
+                    .environmentObject(appMetricaManager)
                     .task {
                         await initializeApp()
                     }
@@ -82,12 +86,16 @@ struct QRScannerApp: App {
         let attStatus = await appsFlyerManager.requestATTPermission()
         print("✅ ATT статус получен: \(attStatus.description)")
         
-        // Шаг 2: Инициализируем AppsFlyer (после получения ATT статуса)
-        print("📱 Шаг 2: Инициализация AppsFlyer...")
+        // Шаг 2: Инициализируем AppMetrica (не требует ATT)
+        print("📱 Шаг 2: Инициализация AppMetrica...")
+        appMetricaManager.initialize()
+        
+        // Шаг 3: Инициализируем AppsFlyer (после получения ATT статуса)
+        print("📱 Шаг 3: Инициализация AppsFlyer...")
         appsFlyerManager.initialize()
         
-        // Шаг 3: Запускаем AppsFlyer SDK
-        print("📱 Шаг 3: Запуск AppsFlyer SDK...")
+        // Шаг 4: Запускаем AppsFlyer SDK
+        print("📱 Шаг 4: Запуск AppsFlyer SDK...")
         appsFlyerManager.start()
 
         print("✅ Инициализация приложения завершена")

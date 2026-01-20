@@ -130,10 +130,15 @@ class AppsFlyerManager: NSObject, ObservableObject {
 
     // MARK: - Event Logging
 
-    /// Логирование события в AppsFlyer
+    /// Логирование события в AppsFlyer и AppMetrica
     func logEvent(name: String, values: [String: Any]? = nil) {
+        // Логируем в AppsFlyer
         AppsFlyerLib.shared().logEvent(name, withValues: values)
         print("📊 AppsFlyer Event: \(name)")
+        
+        // Дублируем в AppMetrica
+        AppMetricaManager.shared.logEvent(name: name, parameters: values)
+        
         if let values = values {
             print("   Values: \(values)")
         }
@@ -146,6 +151,13 @@ class AppsFlyerManager: NSObject, ObservableObject {
             AFEventParamPrice: price,
             AFEventParamCurrency: currency
         ])
+        
+        // Дополнительно логируем в AppMetrica
+        AppMetricaManager.shared.logSubscriptionEvent(
+            productId: productId,
+            price: price,
+            currency: currency
+        )
     }
 
     /// Событие начала trial периода
@@ -153,6 +165,9 @@ class AppsFlyerManager: NSObject, ObservableObject {
         logEvent(name: AFEventStartTrial, values: [
             AFEventParamContentId: productId
         ])
+        
+        // Дополнительно логируем в AppMetrica
+        AppMetricaManager.shared.logTrialStarted(productId: productId)
     }
 
     /// Событие открытия paywall
@@ -160,6 +175,9 @@ class AppsFlyerManager: NSObject, ObservableObject {
         logEvent(name: "paywall_opened", values: [
             "paywall_id": paywallId
         ])
+        
+        // Дополнительно логируем в AppMetrica
+        AppMetricaManager.shared.logPaywallOpened(paywallId: paywallId)
     }
 
     /// Событие закрытия paywall
@@ -168,6 +186,9 @@ class AppsFlyerManager: NSObject, ObservableObject {
             "paywall_id": paywallId,
             "purchased": purchased
         ])
+        
+        // Дополнительно логируем в AppMetrica
+        AppMetricaManager.shared.logPaywallClosed(paywallId: paywallId, purchased: purchased)
     }
 
     // MARK: - Deep Linking
@@ -198,6 +219,9 @@ extension AppsFlyerManager: AppsFlyerLibDelegate {
 
             // Передаем данные в AppHud для атрибуции
         //    ApphudManager.shared.sendAppsFlyerAttribution(conversionInfo)
+
+            // Передаем данные в AppMetrica для атрибуции
+            AppMetricaManager.shared.sendAppsFlyerAttribution(conversionInfo)
 
             // Обрабатываем deep link данные
             if let status = conversionInfo["af_status"] as? String {

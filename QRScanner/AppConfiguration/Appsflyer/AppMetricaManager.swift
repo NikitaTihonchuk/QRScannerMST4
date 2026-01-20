@@ -1,0 +1,175 @@
+import Foundation
+import AppMetricaCore
+import Combine
+@MainActor
+class AppMetricaManager: NSObject, ObservableObject {
+    static let shared = AppMetricaManager()
+    
+    // Published properties для отслеживания статуса
+    @Published var isInitialized = false
+    @Published var appMetricaDeviceID: String?
+    
+    private override init() {
+        super.init()
+    }
+    
+    /// Инициализация AppMetrica SDK
+    func initialize() {
+        guard let configuration = AppMetricaConfiguration(apiKey: AppConfiguration.main.appMetricaAPIKey) else {
+            print("❌ AppMetrica: Не удалось создать конфигурацию")
+            return
+        }
+        
+        // Настройка дополнительных параметров
+        configuration.locationTracking = false // Отключаем отслеживание геолокации
+        configuration.sessionsAutoTracking = true // Автоматическое отслеживание сессий
+        
+        #if DEBUG
+        configuration.areLogsEnabled = true // Включаем логи для отладки
+        #else
+        configuration.areLogsEnabled = false
+        #endif
+        
+        AppMetrica.activate(with: configuration)
+        isInitialized = true
+        
+        // Получаем Device ID
+        self.appMetricaDeviceID = AppMetrica.deviceID
+        
+        print("✅ AppMetrica SDK инициализирован")
+        print("   API Key: \(AppConfiguration.main.appMetricaAPIKey)")
+        print("   Device ID: \(self.appMetricaDeviceID ?? "unknown")")
+    }
+    
+    /// Отправка атрибуции из AppsFlyer в AppMetrica
+    func sendAppsFlyerAttribution(_ data: [AnyHashable: Any]) {
+        guard isInitialized else {
+            print("⚠️ AppMetrica не инициализирован")
+            return
+        }
+        
+        AppMetrica.reportExternalAttribution(data, from: .appsflyer)
+        print("✅ AppMetrica: AppsFlyer attribution отправлена")
+    }
+    
+    // MARK: - Event Logging
+    
+    /// Логирование события в AppMetrica
+    func logEvent(name: String, parameters: [String: Any]? = nil) {
+        guard isInitialized else {
+            print("⚠️ AppMetrica не инициализирован. Событие '\(name)' не отправлено.")
+            return
+        }
+        
+        AppMetrica.reportEvent(name: name, parameters: parameters, onFailure: { error in
+            print("❌ AppMetrica Event Error: \(error.localizedDescription)")
+        })
+        
+        print("📊 AppMetrica Event: \(name)")
+        if let parameters = parameters {
+            print("   Parameters: \(parameters)")
+        }
+    }
+    
+    /// Стандартные события для подписок
+    func logSubscriptionEvent(productId: String, price: String, currency: String) {
+        logEvent(name: "subscription_purchased", parameters: [
+            "product_id": productId,
+            "price": price,
+            "currency": currency
+        ])
+    }
+    
+    /// Событие начала trial периода
+    func logTrialStarted(productId: String) {
+        logEvent(name: "trial_started", parameters: [
+            "product_id": productId
+        ])
+    }
+    
+    /// Событие открытия paywall
+    func logPaywallOpened(paywallId: String) {
+        logEvent(name: "paywall_opened", parameters: [
+            "paywall_id": paywallId
+        ])
+    }
+    
+    /// Событие закрытия paywall
+    func logPaywallClosed(paywallId: String, purchased: Bool) {
+        logEvent(name: "paywall_closed", parameters: [
+            "paywall_id": paywallId,
+            "purchased": purchased
+        ])
+    }
+    
+    /// Событие сканирования QR кода
+    func logQRCodeScanned(type: String, isPremium: Bool) {
+        logEvent(name: "qr_scanned", parameters: [
+            "qr_type": type,
+            "is_premium": isPremium
+        ])
+    }
+    
+    /// Событие создания QR кода
+    func logQRCodeCreated(type: String) {
+        logEvent(name: "qr_created", parameters: [
+            "qr_type": type
+        ])
+    }
+    
+    /// Событие достижения лимита сканирований
+    func logScanLimitReached() {
+        logEvent(name: "scan_limit_reached")
+    }
+    
+    /// Событие просмотра рекламы
+    func logAdWatched(adType: String, reward: String? = nil) {
+        var params: [String: Any] = ["ad_type": adType]
+        if let reward = reward {
+            params["reward"] = reward
+        }
+        logEvent(name: "ad_watched", parameters: params)
+    }
+    
+    // MARK: - User Properties
+    
+    /// Установка свойств пользователя
+    func setUserProperty(key: String, value: String) {
+        guard isInitialized else { return }
+        
+        let profile = MutableUserProfile()
+        let attribute = ProfileAttribute.customString(key).withValue(value)
+        profile.apply(attribute)
+        
+        AppMetrica.reportUserProfile(profile, onFailure: { error in
+            print("❌ AppMetrica User Property Error: \(error.localizedDescription)")
+        })
+        
+        print("👤 AppMetrica User Property: \(key) = \(value)")
+    }
+    
+    /// Установка премиум статуса пользователя
+    func setPremiumStatus(_ hasPremium: Bool) {
+        setUserProperty(key: "premium_status", value: hasPremium ? "premium" : "free")
+    }
+    
+    // MARK: - Revenue Tracking
+    
+    /// Отслеживание покупки (Revenue)
+    func logRevenue(productId: String, price: Decimal, currency: String, quantity: Int = 1) {
+        guard isInitialized else { return }
+        
+        let revenueInfo = MutableRevenueInfo(
+            priceDecimal: price as NSDecimalNumber,
+            currency: currency
+        )
+        revenueInfo.productID = productId
+        revenueInfo.quantity = UInt(quantity)
+        
+        AppMetrica.reportRevenue(revenueInfo, onFailure: { error in
+            print("❌ AppMetrica Revenue Error: \(error.localizedDescription)")
+        })
+        
+        print("💰 AppMetrica Revenue: \(price) \(currency) - \(productId)")
+    }
+}

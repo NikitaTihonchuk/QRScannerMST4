@@ -16,6 +16,9 @@ struct AppConfiguration {
     let appsFlyerDevKey: String
     let appleAppID: String
 
+    // AppMetrica Configuration
+    let appMetricaAPIKey: String
+
     // ATT Configuration
     let attWaitTimeout: TimeInterval
 
@@ -32,6 +35,9 @@ struct AppConfiguration {
         // AppsFlyer
         self.appsFlyerDevKey = "GAgckFyN4yETigBtP4qtRG"
         self.appleAppID = "6749377146"
+
+        // AppMetrica (замените на ваш реальный API ключ)
+        self.appMetricaAPIKey = "8aca1b5c-f091-4da6-a57a-a68d74cbec54"
 
         // ATT - время ожидания разрешения ATT перед запуском AppsFlyer (рекомендуется 60 секунд)
         self.attWaitTimeout = 60
