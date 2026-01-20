@@ -32,8 +32,24 @@ final class AppOpenAdManager: NSObject {
             )
             appOpenAd?.fullScreenContentDelegate = self
             loadTime = Date()
+            
+            // Логируем успешную загрузку
+            await MainActor.run {
+                AppMetricaManager.shared.logEvent(name: "ad_loaded", parameters: [
+                    "ad_type": "app_open"
+                ])
+            }
         } catch {
             print("---Failed to load AppOpenAd:", error)
+            
+            // Логируем ошибку загрузки
+            await MainActor.run {
+                AppMetricaManager.shared.logEvent(name: "ad_load_failed", parameters: [
+                    "ad_type": "app_open",
+                    "error": error.localizedDescription
+                ])
+            }
+            
             appOpenAd = nil
             loadTime = nil
         }
@@ -48,6 +64,12 @@ final class AppOpenAdManager: NSObject {
         await MainActor.run {
             guard let rootVC = UIApplication.topViewController() else {
                 print("❌ No rootViewController yet")
+                
+                // Логируем неудачу показа
+                AppMetricaManager.shared.logEvent(name: "ad_show_failed", parameters: [
+                    "ad_type": "app_open",
+                    "reason": "no_root_vc"
+                ])
                 return
             }
 
@@ -55,6 +77,12 @@ final class AppOpenAdManager: NSObject {
 
             print("✅ Presenting AppOpenAd")
             isShowingAd = true
+            
+            // Логируем показ рекламы
+            AppMetricaManager.shared.logEvent(name: "ad_shown", parameters: [
+                "ad_type": "app_open"
+            ])
+            
             ad.present(from: rootVC)
         }
     }
@@ -68,6 +96,13 @@ extension AppOpenAdManager: FullScreenContentDelegate {
         appOpenAd = nil
         loadTime = nil
 
+        // Логируем закрытие рекламы
+        Task { @MainActor in
+            AppMetricaManager.shared.logEvent(name: "ad_dismissed", parameters: [
+                "ad_type": "app_open"
+            ])
+        }
+        
         Task {
             await self.loadAd()  // Загружаем следующую
         }
@@ -79,8 +114,34 @@ extension AppOpenAdManager: FullScreenContentDelegate {
         appOpenAd = nil
         loadTime = nil
 
+        // Логируем ошибку показа
+        Task { @MainActor in
+            AppMetricaManager.shared.logEvent(name: "ad_present_failed", parameters: [
+                "ad_type": "app_open",
+                "error": error.localizedDescription
+            ])
+        }
+        
         Task {
             await self.loadAd()
+        }
+    }
+    
+    func adDidRecordImpression(_ ad: FullScreenPresentingAd) {
+        // Логируем impression (когда реклама реально показана пользователю)
+        Task { @MainActor in
+            AppMetricaManager.shared.logEvent(name: "ad_impression", parameters: [
+                "ad_type": "app_open"
+            ])
+        }
+    }
+    
+    func adDidRecordClick(_ ad: FullScreenPresentingAd) {
+        // Логируем клик по рекламе
+        Task { @MainActor in
+            AppMetricaManager.shared.logEvent(name: "ad_clicked", parameters: [
+                "ad_type": "app_open"
+            ])
         }
     }
 }
