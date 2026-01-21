@@ -121,6 +121,9 @@ struct ScanQRScreenNew: View {
                             // Показываем кнопку для открытия paywall
                             Button(action: {
                                 showPaywall = true
+                                
+                                // Логируем показ paywall из-за достижения лимита
+                                AppMetricaManager.shared.logPaywallShownFromScanLimit()
                             }) {
                                 RoundedRectangle(cornerRadius: 24)
                                     .fill(Color.black.opacity(0.8))
@@ -170,6 +173,11 @@ struct ScanQRScreenNew: View {
                             Button(action: {
                                 RewardedAdManager.shared.showAd { reward in
                                     isFreeScanEnable = true
+                                    // Логируем просмотр рекламы для получения бесплатного скана
+                                    AppMetricaManager.shared.logAdWatched(
+                                        adType: "rewarded",
+                                        reward: "free_scan"
+                                    )
                                 }
 
                             }, label: {
@@ -202,6 +210,12 @@ struct ScanQRScreenNew: View {
                     // Flash
                     Button(action: {
                         cameraManager.toggleFlash()
+                        
+                        // Логируем использование вспышки
+                        AppMetricaManager.shared.logFlashToggled(
+                            enabled: cameraManager.isFlashOn,
+                            isPremium: apphudManager.hasPremium
+                        )
                     }) {
                         VStack(spacing: 8) {
                             Image("flashScanQRIcon")
@@ -217,6 +231,13 @@ struct ScanQRScreenNew: View {
                     // Switch Camera
                     Button(action: {
                         cameraManager.switchCamera()
+                        
+                        // Логируем переключение камеры
+                        let position = cameraManager.currentCameraPosition == .front ? "back" : "front"
+                        AppMetricaManager.shared.logCameraSwitched(
+                            position: position,
+                            isPremium: apphudManager.hasPremium
+                        )
                     }) {
                         VStack(spacing: 8) {
                             Image("switchScanQRIcon")
@@ -274,6 +295,13 @@ struct ScanQRScreenNew: View {
             if apphudManager.hasPremium {
                 scanLimitManager.resetScanCount()
             }
+            
+            // Логируем открытие экрана сканирования
+            let remainingScans = apphudManager.hasPremium ? nil : scanLimitManager.remainingScans
+            AppMetricaManager.shared.logScanScreenOpened(
+                isPremium: apphudManager.hasPremium,
+                remainingScans: remainingScans
+            )
         }
         .onDisappear {
             cameraManager.stopSession()
@@ -310,6 +338,12 @@ struct ScanQRScreenNew: View {
             Task {
                 if let newValue {
                     isProcessingImage = true
+                    
+                    // Логируем открытие галереи
+                    AppMetricaManager.shared.logGalleryOpened(
+                        isPremium: apphudManager.hasPremium
+                    )
+                    
                     if let data = try? await newValue.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
                         await MainActor.run {
@@ -328,7 +362,7 @@ struct ScanQRScreenNew: View {
                 qrCodes: detectedQRCodes,
                 isPresented: $showMultipleQRSheet
             ) { selectedCode in
-                handleScanResult(selectedCode)
+                handleScanResult(selectedCode, source: "gallery")
             }
         }
         .alert("No QR Code Found", isPresented: $showNoQRAlert) {
@@ -357,19 +391,33 @@ struct ScanQRScreenNew: View {
                 // Лимиты закончились - сбрасываем флаг бесплатного скана
                 isFreeScanEnable = false
                 cameraManager.stopSession()
+                
+                // Логируем достижение лимита сканирований
+                AppMetricaManager.shared.logScanLimitReached()
             }
         }
         .alert("Last Free Scan!", isPresented: $showLastScanWarning) {
             Button("Continue", role: .cancel) { }
             Button("Get Unlimited") {
                 showPaywall = true
+                
+                // Логируем клик на "Get Unlimited"
+                AppMetricaManager.shared.logLastScanWarningUpgradeClicked()
             }
         } message: {
             Text("This is your last free scan. Upgrade to Premium for unlimited QR code scanning!")
         }
+        .onChange(of: showLastScanWarning) { oldValue, newValue in
+            if newValue {
+                // Логируем показ предупреждения о последнем скане
+                AppMetricaManager.shared.logLastScanWarningShown(
+                    isPremium: apphudManager.hasPremium
+                )
+            }
+        }
     }
     
-    private func handleScanResult(_ code: String) {
+    private func handleScanResult(_ code: String, source: String = "camera") {
         guard scannedResult == nil else { return }
         
         isProcessingImage = false
@@ -385,6 +433,30 @@ struct ScanQRScreenNew: View {
         showResultSheet = true
         
         QRHistoryManager.shared.saveToHistory(result)
+        
+        // Логируем успешное сканирование QR-кода с детальной информацией
+        let remainingScans = apphudManager.hasPremium ? nil : scanLimitManager.remainingScans - 1
+        
+        AppMetricaManager.shared.logQRScanSuccess(
+            type: type.rawValue,
+            source: source,
+            isPremium: apphudManager.hasPremium,
+            remainingScans: remainingScans
+        )
+        
+        // Логируем старое событие для совместимости
+        AppMetricaManager.shared.logQRCodeScanned(
+            type: type.rawValue,
+            isPremium: apphudManager.hasPremium
+        )
+        
+        // Логируем в зависимости от источника
+        if source == "camera" {
+            AppMetricaManager.shared.logQRScanFromCamera(
+                type: type.rawValue,
+                isPremium: apphudManager.hasPremium
+            )
+        }
         
         // Увеличиваем счетчик сканирований только для бесплатных пользователей
         if !apphudManager.hasPremium {
@@ -422,10 +494,36 @@ struct ScanQRScreenNew: View {
                 isProcessingImage = false
                 
                 if codes.isEmpty {
+                    // Логируем неудачное сканирование
+                    AppMetricaManager.shared.logQRScanFailed(
+                        source: "gallery",
+                        isPremium: apphudManager.hasPremium
+                    )
                     showNoQRAlert = true
                 } else if codes.count == 1 {
-                    handleScanResult(codes[0])
+                    // Логируем сканирование из галереи с одним QR-кодом
+                    let type = detectQRCodeType(from: codes[0])
+                    AppMetricaManager.shared.logQRScanFromGallery(
+                        type: type.rawValue,
+                        isPremium: apphudManager.hasPremium,
+                        multipleDetected: false
+                    )
+                    handleScanResult(codes[0], source: "gallery")
                 } else {
+                    // Логируем обнаружение нескольких QR-кодов
+                    AppMetricaManager.shared.logMultipleQRCodesDetected(
+                        count: codes.count,
+                        isPremium: apphudManager.hasPremium
+                    )
+                    
+                    // Логируем сканирование из галереи с несколькими QR-кодами
+                    let type = detectQRCodeType(from: codes[0])
+                    AppMetricaManager.shared.logQRScanFromGallery(
+                        type: type.rawValue,
+                        isPremium: apphudManager.hasPremium,
+                        multipleDetected: true
+                    )
+                    
                     detectedQRCodes = codes
                     showMultipleQRSheet = true
                 }

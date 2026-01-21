@@ -42,6 +42,11 @@ class ScanLimitManager: ObservableObject {
     func incrementScanCount() {
         usedScans += 1
         saveScanCount()
+        
+        // Логируем достижение лимита
+        if hasReachedLimit {
+            AppMetricaManager.shared.logScanLimitReached()
+        }
     }
     
     /// Сбросить счетчик (например, после покупки Premium)

@@ -8,7 +8,7 @@ struct ScannedQRCode {
     let scannedDate: Date
 }
 
-enum QRCodeType {
+enum QRCodeType: String {
     case url, email, phone, text
     
     var title: String {

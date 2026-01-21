@@ -591,6 +591,16 @@ struct AddNewQR: View {
                     isSaved = false
                     savedQRCodeID = nil
                     
+                    // Логируем создание QR-кода
+                    let contentTypeString: String
+                    switch selectedContentType {
+                    case .url: contentTypeString = "url"
+                    case .text: contentTypeString = "text"
+                    case .contact: contentTypeString = "contact"
+                    case .wifi: contentTypeString = "wifi"
+                    }
+                    AppMetricaManager.shared.logQRCodeCreated(type: contentTypeString)
+                    
                     withAnimation(.spring()) {
                         showSuccess = true
                     }
