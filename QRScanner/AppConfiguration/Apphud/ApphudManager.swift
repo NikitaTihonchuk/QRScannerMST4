@@ -44,6 +44,7 @@ final class ApphudManager: ObservableObject {
 
     
     private init() {
+        print("🚀 [Apphud] Инициализация ApphudManager")
         
         Task {
             await getProduct(.paywall)
@@ -53,12 +54,34 @@ final class ApphudManager: ObservableObject {
     }
     
     var hasPremium: Bool {
-        Apphud.hasActiveSubscription()
+        let hasSubscription = Apphud.hasActiveSubscription()
+        print("💎 [Apphud] Проверка Premium статуса: \(hasSubscription)")
+        return hasSubscription
         //true
     }
     
     private func getProduct(_ product: ProdType) async {
-        guard let paywall = await Apphud.paywall(product.rawValue) else { return }
+        print("🔍 [Apphud] Запрос paywall: \(product.rawValue)")
+        
+        guard let paywall = await Apphud.paywall(product.rawValue) else {
+            print("❌ [Apphud] Paywall '\(product.rawValue)' не найден")
+            return
+        }
+        
+        print("✅ [Apphud] Paywall получен: \(paywall.identifier)")
+        print("📦 [Apphud] Количество продуктов в paywall: \(paywall.products.count)")
+        
+        for (index, product) in paywall.products.enumerated() {
+            print("  📱 Продукт #\(index + 1):")
+            print("    - ID: \(product.productId)")
+            print("    - Name: \(product.name ?? "N/A")")
+            if let skProduct = product.skProduct {
+                print("    - SKProduct ID: \(skProduct.productIdentifier)")
+                print("    - Price: \(skProduct.price)")
+                print("    - Locale: \(skProduct.priceLocale.identifier)")
+                print("    - Has Intro: \(skProduct.introductoryPrice != nil)")
+            }
+        }
         
         await MainActor.run {
            
@@ -69,8 +92,10 @@ final class ApphudManager: ObservableObject {
             getTrial(paywall.products.first) { result in
                 do {
                     let hasTrial = try result.get()
+                    print("🎁 [Apphud] Trial доступен: \(hasTrial)")
                     self.isPaywallTrial = hasTrial
                 } catch {
+                    print("⚠️ [Apphud] Ошибка проверки trial: \(error)")
                     self.isPaywallTrial = false
                 }
             }
@@ -97,16 +122,32 @@ final class ApphudManager: ObservableObject {
 //    }
      
     private func savePaywallInfo(_ paywall: ApphudPaywall) {
+        print("💾 [Apphud] Сохранение информации о paywall: \(paywall.identifier)")
+        
         Task {
             var result: [ProductInformation] = []
 
             for apphudProduct in paywall.products {
-                guard let storeProduct = try? await apphudProduct.product() else { continue }
+                print("  🔄 Обработка продукта: \(apphudProduct.productId)")
+                
+                guard let storeProduct = try? await apphudProduct.product() else {
+                    print("    ❌ Не удалось получить StoreKit Product")
+                    continue
+                }
 
                 let price = storeProduct.displayPrice
                 let period = await getSubscriptionPeriod(storeProduct)
                 let hasTrial = storeProduct.subscription?.introductoryOffer != nil
                 let trialDuration = hasTrial ? trialCode(for: apphudProduct) : nil
+
+                print("    ✅ Продукт загружен:")
+                print("       - Название: \(storeProduct.displayName)")
+                print("       - Цена: \(price)")
+                print("       - Период: \(period)")
+                print("       - Есть trial: \(hasTrial)")
+                if let trial = trialDuration {
+                    print("       - Длительность trial: \(trial)")
+                }
 
                 let info = ProductInformation(
                     id: apphudProduct.productId,
@@ -122,26 +163,44 @@ final class ApphudManager: ObservableObject {
 
             await MainActor.run {
                 self.products = result
+                print("✅ [Apphud] Сохранено \(result.count) продуктов")
             }
         }
     }
     
     func purchase(productId: String) {
-        print("---productId: \(productId)")
+        print("🛒 [Apphud] Начало покупки продукта: \(productId)")
+        print("📦 [Apphud] Доступные продукты: \(apphudProducts.map { $0.productId })")
+        
         guard let product = apphudProducts.first(where: { $0.productId == productId }) else {
+            print("❌ [Apphud] Продукт не найден: \(productId)")
             for product in apphudProducts {
-                print("---productId: \(product.productId)" )
+                print("  - \(product.productId)" )
             }
             return
         }
 
+        print("✅ [Apphud] Продукт найден, инициализация покупки...")
+        
         Task {
             let result = await Apphud.purchase(product)
 
+            print("📊 [Apphud] Результат покупки:")
+            print("  - Success: \(result.success)")
+            if let error = result.error {
+                print("  - Error: \(error.localizedDescription)")
+            }
+            if let subscription = result.subscription {
+                print("  - Subscription ID: \(subscription.productId)")
+                print("  - Is Active: \(subscription.isActive())")
+            }
+
             await MainActor.run {
                 if result.success {
+                    print("✅ [Apphud] Покупка успешна")
                     self.result = .purchasePaywallSuccess
                 } else {
+                    print("❌ [Apphud] Покупка не удалась")
                     self.result = .purchasePaywallError
                     self.showPaywallErrorAlert = true
                 }
@@ -207,27 +266,35 @@ final class ApphudManager: ObservableObject {
     
     
     private func savePaywallProducts(_ paywall: ApphudPaywall) {
+        print("💾 [Apphud] Сохранение продуктов paywall")
         apphudProducts = paywall.products
 
         for product in paywall.products {
             if let skProduct = product.skProduct, skProduct.introductoryPrice != nil {
+                print("  🎁 Продукт с trial: \(product.productId)")
                 paywallWeekProductWithTrial = product
                 paywallTrialDuration = trialCode(for: product)
+                print("    - Trial duration: \(paywallTrialDuration)")
                 
                 Task {
                     let price = (try? await product.product()?.displayPrice) ?? "-//-"
                     let period = await getSubscriptionPeriod(try? await product.product())
+                    print("    - Цена: \(price)")
+                    print("    - Период: \(period)")
                     DispatchQueue.main.async {
                         self.paywallPriceWithTrial = price
                         self.paywallPeriodWithTrial = period
                     }
                 }
             } else {
+                print("  📦 Продукт без trial: \(product.productId)")
                 paywallWeekProductNoTrial = product
                 
                 Task {
                     let price = (try? await product.product()?.displayPrice) ?? "-//-"
                     let period = await getSubscriptionPeriod(try? await product.product())
+                    print("    - Цена: \(price)")
+                    print("    - Период: \(period)")
                     DispatchQueue.main.async {
                         self.paywallPriceNoTrial = price
                         self.paywallPeriodNoTrial = period
@@ -237,6 +304,7 @@ final class ApphudManager: ObservableObject {
         }
         
         if paywallWeekProductWithTrial == nil {
+            print("  ⚠️ Продукт с trial не найден")
             paywallTrialDuration = "-"
         }
     }
@@ -253,13 +321,30 @@ final class ApphudManager: ObservableObject {
     }
     
     func purchaseProduct(prod: ProdPeriodType, isTrial: Bool) {
-        guard let product = getApphudProduct(prod: prod, isTrial: isTrial) else { return }
+        print("🛒 [Apphud] Покупка продукта - Тип: \(prod), Trial: \(isTrial)")
+        
+        guard let product = getApphudProduct(prod: prod, isTrial: isTrial) else {
+            print("❌ [Apphud] Продукт не найден для типа: \(prod), trial: \(isTrial)")
+            return
+        }
+        
+        print("✅ [Apphud] Найден продукт: \(product.productId)")
+        
         Task {
             let result = await Apphud.purchase(product)
+            
+            print("📊 [Apphud] Результат покупки:")
+            print("  - Success: \(result.success)")
+            if let error = result.error {
+                print("  - Error: \(error.localizedDescription)")
+            }
+            
             DispatchQueue.main.async {
                 if result.success {
+                    print("✅ [Apphud] Покупка успешна")
                     self.result = .purchasePaywallSuccess
                 } else {
+                    print("❌ [Apphud] Покупка не удалась")
                     self.result = .purchasePaywallError
                     self.showErrorAlert(isPurchase: true)
                     self.showPaywallErrorAlert = true
@@ -269,12 +354,36 @@ final class ApphudManager: ObservableObject {
     }
     
     func restoreProduct(isOB: Bool) {
+        print("🔄 [Apphud] Восстановление покупок - Onboarding: \(isOB)")
+        
         Task {
             await Apphud.restorePurchases { subscriptions, purchases, error in
+                print("📊 [Apphud] Результат восстановления:")
+                
+                if let error = error {
+                    print("  ❌ Error: \(error.localizedDescription)")
+                }
+                
+                if let subscriptions = subscriptions {
+                    print("  📦 Подписки: \(subscriptions.count)")
+                    for sub in subscriptions {
+                        print("    - ID: \(sub.productId), Active: \(sub.isActive())")
+                    }
+                }
+                
+                if let purchases = purchases {
+                    print("  🛍️ Покупки: \(purchases.count)")
+                }
+                
+                let hasActive = Apphud.hasActiveSubscription()
+                print("  ✅ Есть активная подписка: \(hasActive)")
+                
                 DispatchQueue.main.async {
-                    if Apphud.hasActiveSubscription() {
+                    if hasActive {
+                        print("✅ [Apphud] Восстановление успешно")
                         self.result = isOB ? .restoreOBSuccess : .restorePaywallSuccess
                     } else {
+                        print("❌ [Apphud] Активных подписок не найдено")
                         self.result = isOB ? .restoreOBError : .restorePaywallError
                         self.showErrorAlert(isPurchase: false)
                         self.showPaywallErrorAlert = true

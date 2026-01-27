@@ -12,7 +12,6 @@ struct OnboardingMainScreen: View {
     
     private var onboardingContent: some View {
         ZStack {
-            // Background gradient
             LinearGradient(
                 colors: [
                     Color(hex: "FFFFFF"),

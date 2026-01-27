@@ -28,11 +28,11 @@ class AppMetricaManager: NSObject, ObservableObject {
         }
         
         // Настройка дополнительных параметров
-        configuration.locationTracking = false // Отключаем отслеживание геолокации
+        configuration.locationTracking = true // Отключаем отслеживание геолокации
         configuration.sessionsAutoTracking = true // Автоматическое отслеживание сессий
         
         #if DEBUG
-        configuration.areLogsEnabled = true // Включаем логи для отладки
+        configuration.areLogsEnabled = false // Включаем логи для отладки
         #else
         configuration.areLogsEnabled = false
         #endif
